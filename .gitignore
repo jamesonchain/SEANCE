@@ -1,0 +1,23 @@
+node_modules/
+.next/
+out/
+dist/
+target/
+.turbo/
+.vercel/
+coverage/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.seed
+wallet.json
+wallets/
+secrets/
+
+# Local tooling state
+.agents/
+.codex/
