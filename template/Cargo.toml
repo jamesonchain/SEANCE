@@ -1,0 +1,9 @@
+[package]
+name = "seance-auction"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Deterministic sealed-bid auction rules for the SEANCE Tari adapter"
+
+[lib]
+path = "src/lib.rs"
