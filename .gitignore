@@ -39,3 +39,17 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Rust and local build output
+/target/
+/template/target/
+
+# Secrets and wallet state
+.env
+.env.*
+!.env.example
+*.key
+*.seed
+wallet.json
+wallets/
+secrets/
