@@ -5,7 +5,7 @@ import { ProviderBuilder, type IndexerProvider } from "@tari-project/ootle-index
 import { authenticate, WalletDaemonSigner } from "@tari-project/ootle-wallet-daemon-signer";
 import { WalletDaemonClient } from "@tari-project/wallet_jrpc_client";
 
-const walletdUrl = process.env.NEXT_PUBLIC_TARI_WALLETD_URL ?? "http://127.0.0.1:5100";
+const walletdUrl = process.env.NEXT_PUBLIC_TARI_WALLETD_URL ?? "http://127.0.0.1:5100/json_rpc";
 const walletSessionTtlMs = 60 * 60 * 1000;
 
 function formatAmount(amount: string | number | bigint, divisibility: number) {
@@ -49,7 +49,10 @@ export type TariLiveSession = {
 
 export async function connectTariLive(): Promise<TariLiveSession> {
   const provider = await ProviderBuilder.new().withNetwork(Network.Esmeralda).connect();
-  const client = WalletDaemonClient.usingFetchTransport(walletdUrl, { credentials: "include" });
+  // The v0.47 daemon's JSON-RPC CORS response is wildcard. Browser credential
+  // mode would therefore be rejected by the platform; the bearer session token
+  // is kept in memory and a fresh passkey login is required after expiry.
+  const client = WalletDaemonClient.usingFetchTransport(walletdUrl, { credentials: "omit" });
   try {
     // `authenticate` is the SDK's browser WebAuthn flow. Keep the token in the
     // daemon client only; the passkey and wallet keys never enter app storage.

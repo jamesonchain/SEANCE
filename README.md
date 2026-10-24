@@ -61,7 +61,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`. Live Mode is the default. Set `NEXT_PUBLIC_TARI_WALLETD_URL` if the wallet daemon is not at `http://127.0.0.1:18103`. Set `NEXT_PUBLIC_SEANCE_COMPONENT_ADDRESS` only after publishing a real auction component.
+Open `http://localhost:3000`. Live Mode is the default. The app connects to Esmeralda wallet JSON-RPC at `http://127.0.0.1:5100/json_rpc` and expects the daemon's allowed origin to be `http://localhost:3000`. Set `NEXT_PUBLIC_TARI_WALLETD_URL` only when using a different JSON-RPC endpoint. Set `NEXT_PUBLIC_SEANCE_COMPONENT_ADDRESS` only after publishing a real auction component.
 
 ### Esmeralda testnet
 
