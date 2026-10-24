@@ -1,6 +1,6 @@
 # Tari Ootle research
 
-Research checkpoint: 24 October 2026
+Research checkpoint: 25 October 2026
 
 ## What Ootle templates are
 
@@ -34,7 +34,9 @@ The template workflow is:
 
 ## Frontend integration choice
 
-For a browser dApp, use `@tari-project/ootle` with `@tari-project/ootle-indexer` and the wallet-daemon signer/WebAuthn flow. The default wallet daemon JSON-RPC endpoint in the current TypeScript examples is `http://127.0.0.1:9000/json_rpc`. The web app should request wallet approval for transaction signing; it must not receive or store a seed/private key. The indexer is used for public auction state and transaction status, while the wallet signer creates/authorizes private transfers.
+For a browser dApp, use `@tari-project/ootle` with `@tari-project/ootle-indexer` and the wallet-daemon signer/WebAuthn flow. The running Esmeralda v0.47.0 daemon exposes JSON-RPC and its web UI at `http://127.0.0.1:5100`; its configured allowed origin is exactly `http://localhost:3000`, so the frontend must be opened on that origin. `WalletDaemonSigner.connect({ url, appName })` calls `auth.method`, then performs the browser passkey registration or login and exchanges the credential for a session token. The SDK enables `auth.refresh` for the daemon's 3600-second session TTL. The web app should request wallet approval for transaction signing; it must not receive or store a seed, passkey, or private key. The indexer is used for public auction state and transaction status, while the wallet signer creates/authorizes private transfers.
+
+The wallet daemon client also exposes `accounts.get_balances`; SEANCE uses it after authentication to display the real default account's address and token balances. A failed fetch means the daemon is unavailable, a WebAuthn `SecurityError` normally means the page origin does not match the daemon allow-list, `NotAllowedError` is a cancelled or timed-out passkey prompt, and an expired/invalid session is handled as a reauthentication error.
 
 ## Sources
 
