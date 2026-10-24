@@ -4,6 +4,10 @@ const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
+  webpack: (config) => {
+    config.experiments = { ...config.experiments, asyncWebAssembly: true };
+    return config;
+  },
   turbopack: {
     rules: {
       "*.css": {
