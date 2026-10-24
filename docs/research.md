@@ -1,0 +1,44 @@
+# Tari Ootle research
+
+Research checkpoint: 24 October 2026
+
+## What Ootle templates are
+
+An Ootle template is Rust code compiled to a WebAssembly (`wasm32-unknown-unknown`) binary. The published WASM becomes a template on the network; transactions instantiate components from it and call their methods. The current publishing guide caps the optimized binary at 1 MiB. The Tari CLI can scaffold, build, and publish templates, while the wallet daemon JSON-RPC is currently the supported publishing path.
+
+## The privacy primitives
+
+- **Confidential resource:** hides amounts with Pedersen commitments and range proofs, but the vault and its owning component remain visible.
+- **Stealth resource:** hides amounts and ownership by putting funds in UTXOs with one-time stealth addresses. Native TARI is a stealth resource.
+- **Encrypted output data:** the recipient's wallet decrypts the amount and mask; a third party cannot do so without the relevant key.
+- **What still leaks:** fees are revealed, transaction shape and timing are public, revealed inputs/outputs are public, and calls that require a public signature can link an action to a key.
+
+## Honest sealed-bid design
+
+The winning design uses stealth TARI bids where possible. The auction component stores public auction metadata and opaque bid commitments/receipts, while bid amounts travel as private outputs. The component can enforce that a bid is committed before close and that only the winner receives a revealed payout. However, a fully on-chain “the contract compares hidden bids and reveals only the maximum” is not supported by the primitives alone: a template cannot inspect plaintext confidential values it does not own, and a public component call can reveal caller identity. The closest honest version is a commit/reveal or encrypted-bid flow with a designated reveal/settlement authority, or a threshold/co-signed settlement flow. The UI must label any authority and metadata leakage instead of claiming zero-knowledge auction computation.
+
+For the contest build, SEANCE will implement the strongest working path available in the checked-out Ootle APIs and keep an explicit Demo Mode for the visual walkthrough. Demo Mode is a simulation, never presented as chain privacy.
+
+## Local swarm and deployment
+
+The Ootle repository documents a localnet using `tari_swarm_daemon`: clone Tari and tari-ootle side by side, initialize `data/swarm/config.toml`, and start the swarm. The swarm supplies a base node, console wallet, validator, Ootle wallet, and indexer. The admin UI is served at `http://localhost:8080`.
+
+The template workflow is:
+
+1. Install Rust and the WASM target: `rustup target add wasm32-unknown-unknown`.
+2. Build the template with Cargo (or `tari build`).
+3. Run `tari publish <template>` against a funded local wallet account, or publish through the wallet UI.
+4. Submit manifests through walletd JSON-RPC and wait for the transaction receipt.
+
+## Frontend integration choice
+
+For a browser dApp, use `@tari-project/ootle` with `@tari-project/ootle-indexer` and the wallet-daemon signer/WebAuthn flow. The default wallet daemon JSON-RPC endpoint in the current TypeScript examples is `http://127.0.0.1:9000/json_rpc`. The web app should request wallet approval for transaction signing; it must not receive or store a seed/private key. The indexer is used for public auction state and transaction status, while the wallet signer creates/authorizes private transfers.
+
+## Sources
+
+- https://github.com/tari-project/tari-ootle
+- https://ootle.tari.com/concepts/privacy/
+- https://ootle.tari.com/concepts/templates-and-assets/
+- https://ootle.tari.com/guides/publishing-templates/
+- https://ootle.tari.com/guides/cli/
+- https://github.com/tari-project/ootle.ts
