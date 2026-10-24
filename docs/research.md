@@ -42,3 +42,11 @@ For a browser dApp, use `@tari-project/ootle` with `@tari-project/ootle-indexer`
 - https://ootle.tari.com/guides/publishing-templates/
 - https://ootle.tari.com/guides/cli/
 - https://github.com/tari-project/ootle.ts
+
+## Live network research (24 October 2026)
+
+The current public testnet is **Esmeralda**. The wallet daemon release guide documents v0.47.0 binaries and the command `tari_ootle_walletd --network esme`; its local web UI runs on port 5100. Public testnet faucet state is not guaranteed: the guide says the faucet may be empty. The supported funding path is to burn Minotari on the base layer, then claim the burn proof in the Ootle wallet. Localnet has a funded faucet that can claim 1,000 tTARI.
+
+The documented browser integration is the TypeScript SDK, not a browser extension: `@tari-project/ootle` builds transactions, `@tari-project/ootle-indexer` reads/submits chain data, and `@tari-project/ootle-wallet-daemon-signer` delegates signing to a running wallet daemon. The SDK examples use a local wallet-daemon endpoint and explicit wallet authorization. Seeds and private keys must remain inside the wallet daemon.
+
+The repository’s current Rust crate is a tested deterministic auction-rule core. It is not yet compiled against `tari_template_lib`, so it has no valid Tari template address and cannot honestly be deployed. A real deployment requires replacing the standalone crate with a Tari template crate, building the WASM target against the pinned Ootle toolchain, funding a wallet, publishing it, and recording the resulting template address. The real UI must not display fabricated transaction IDs or chain data while those prerequisites are absent.
