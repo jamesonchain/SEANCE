@@ -73,6 +73,15 @@ function SealObject({ onCrack }: { onCrack: () => void }) {
   const mouse = useRef({ x: 0, y: 0 });
   const target = useRef({ x: 0, y: 0 });
   useEffect(() => {
+    const updateTheme = () => {
+      const ember = getComputedStyle(document.documentElement).getPropertyValue("--ember").trim();
+      if (ember) material.uniforms.uEmber.value.set(ember);
+    };
+    updateTheme();
+    document.addEventListener("seance-theme-change", updateTheme);
+    return () => document.removeEventListener("seance-theme-change", updateTheme);
+  }, [material]);
+  useEffect(() => {
     const move = (event: MouseEvent) => {
       target.current.x = (event.clientX / window.innerWidth - 0.5) * 0.35;
       target.current.y = (event.clientY / window.innerHeight - 0.5) * 0.22;

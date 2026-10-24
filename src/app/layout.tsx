@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./live.css";
+import "./theme.css";
 
 export const metadata: Metadata = { title: "SEANCE — Let the highest whisper", description: "A confidential auction house built on Tari Ootle." };
 

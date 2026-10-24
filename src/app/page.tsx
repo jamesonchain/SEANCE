@@ -43,6 +43,7 @@ export default function Home() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem("seance-theme", theme);
+    document.dispatchEvent(new Event("seance-theme-change"));
   }, [theme]);
   useEffect(() => {
     const root = document.documentElement;
