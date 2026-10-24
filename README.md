@@ -1,70 +1,134 @@
 # SEANCE
 
-> Let the highest whisper.
+Confidential sealed-bid auctions for Tari Ootle.
 
-SEANCE is a candlelit sealed-bid auction interface for Tari Ootle. It makes a privacy concept legible: the room can see that bids exist, but not their amounts.
+[![MIT License](https://img.shields.io/badge/license-MIT-7CF3D0.svg)](LICENSE) [![Rust](https://img.shields.io/badge/built_with-Rust-orange.svg)](template) [![Tari Ootle](https://img.shields.io/badge/network-Tari_Ootle-FF5A1F.svg)](https://ootle.tari.com/)
 
-## Current status
+> Hero image placeholder: `public/seance-hero.png`
 
-The polished Next.js frontend and deterministic auction-rule core are working. Demo Mode is enabled by default so a judge can click through without a wallet. The Tari template adapter and local-swarm deployment still require a pinned Ootle SDK/toolchain and a funded local wallet; this repo does not pretend the visual simulation is a live chain transaction.
+## Overview
 
-## Privacy, plainly
+SEANCE is an auction interface for Tari Ootle. It is designed around sealed bids: participants submit an offer without publishing the amount to the chain, then the auction settles according to explicit close, reveal, winner, and refund rules.
 
-Tari confidential resources hide amounts in commitments. Stealth resources also hide ownership. Fees, timing, transaction shape, revealed boundaries, and identity-linked public calls can still leak. A public smart contract cannot magically compare plaintext values it cannot access, so a fully trustless hidden maximum requires a reveal/settlement or threshold-authority flow. SEANCE labels that boundary instead of claiming zero-knowledge auction computation.
+The repository currently contains a polished frontend, a tested auction-rule core, and a real Tari Ootle SDK connection path. The Tari template has not yet been published, so the live UI refuses to fabricate a component address, transaction ID, or auction state. Demo Mode remains available as an offline preview and is off by default.
+
+## Features
+
+- Live-mode connection to the Esmeralda Ootle indexer and a local Tari wallet daemon.
+- Wallet-daemon signing through the official TypeScript SDK; private keys stay in the daemon.
+- Explicit offline preview mode labelled `SIMULATION`.
+- Auction UI for creating a lot, placing a bid, closing, revealing, and refunding once the template is deployed.
+- Rust tests for highest-bid settlement, tie-breaking, late bids, duplicate bids, zero bids, missing reveals, and seller authorization.
+- Chain-versus-human privacy panel that shows only verified live fields.
+
+## How privacy works
+
+The intended Tari flow uses confidential or stealth resources. Confidential resources hide amounts with commitments but still expose the owning vault/component. Stealth resources hide amounts and ownership using one-time addresses. Fees, timing, transaction structure, revealed inputs/outputs, and identity-linked public calls remain visible.
+
+The current repository proves the auction rules in Rust, but it does not yet prove a deployed on-chain auction template. A public component cannot inspect arbitrary hidden bid plaintexts by itself. A production settlement therefore needs an honest reveal/settlement or threshold-authority design. Until that design is deployed and verified, SEANCE does not claim that the current UI is a live private auction.
 
 ## Architecture
 
-- `src/app/page.tsx` — single-page auction house, Demo Mode, sealed-bid interaction, whisper wall, and chain-vs-human proof view.
-- `src/app/globals.css` — custom ink/bone/ember/teal visual system, responsive layout, grain, candle/orbit effects, and motion.
-- `template/src/lib.rs` — deterministic auction rules: create, commit, close, settle, refund, access control, tie-break, and edge cases.
-- `docs/research.md` — Tari Ootle research, privacy model, wallet integration path, and localnet notes.
+```mermaid
+flowchart LR
+  UI[Next.js frontend] --> SDK[@tari-project/ootle]
+  SDK --> IDX[Esmeralda or LocalNet indexer]
+  SDK --> SIGN[WalletDaemonSigner]
+  SIGN --> WALLET[Tari wallet daemon]
+  WALLET --> CHAIN[Tari Ootle validators]
+  UI --> TEMPLATE[Published auction template]
+  TEMPLATE --> CHAIN
+```
 
-## Run locally
+## Tech stack
+
+- Next.js 16 App Router and TypeScript
+- Tailwind CSS, custom CSS, GSAP-ready interaction layer, Lenis-ready scroll layer
+- Rust auction-rule core and Tari Ootle template target
+- `@tari-project/ootle`, `@tari-project/ootle-indexer`, and `@tari-project/ootle-wallet-daemon-signer`
+- Esmeralda testnet or Tari LocalNet
+
+## Getting started
+
+### Frontend
+
+Prerequisites: Node.js 22+, npm, Rust, Cargo, and a Tari Ootle wallet daemon.
 
 ```bash
 npm install
 npm run dev
-npm run build
 ```
 
-Open http://localhost:3000. For the auction core:
+Open `http://localhost:3000`. Live Mode is the default. Set `NEXT_PUBLIC_TARI_WALLETD_URL` if the wallet daemon is not at `http://127.0.0.1:18103`. Set `NEXT_PUBLIC_SEANCE_COMPONENT_ADDRESS` only after publishing a real auction component.
+
+### Esmeralda testnet
+
+Download a matching `tari_ootle_walletd` release, then run:
 
 ```bash
-./scripts/test-template.sh
+./tari_ootle_walletd --network esme
 ```
 
-The default Next 16 Turbopack build may be restricted in hardened environments that disallow a child process from binding to a port. `npx next build --webpack` is the verified production build command in this workspace.
+The wallet UI is at `http://localhost:5100`. Public testnet faucet balances may be empty. The documented funding path is to burn Minotari and claim the burn proof in the Ootle wallet.
 
-## Demo flow
+### LocalNet
 
-1. Scroll to `Open rooms` and choose `The First Edition`.
-2. Change the amount, then press `Seal this bid`.
-3. Notice the new hidden slot on the Whisper Wall.
-4. Compare the public commitment view with the private reveal view.
-5. Toggle `Demo mode` to see the live-wallet boundary. Demo Mode is a simulation.
+Clone `tari` and `tari-ootle` side by side, install the WASM target, then run from the `tari-ootle` checkout:
 
-## 75-second demo script
+```bash
+rustup target add wasm32-unknown-unknown
+cargo run --bin tari_swarm_daemon --release -- -c data/swarm/config.toml init
+cargo run --bin tari_swarm_daemon --release -- -c data/swarm/config.toml start
+```
 
-| Time | Shot | Voiceover |
-| --- | --- | --- |
-| 00–08s | Black page, ember flame, SEANCE title | “Every auction has a secret.” |
-| 08–18s | Scroll into Open rooms, hover Lot 001 | “SEANCE is a sealed-bid room built on Tari.” |
-| 18–31s | Enter 420 tTARI, press Seal this bid | “Your maximum offer is encrypted before it touches the auction.” |
-| 31–43s | Whisper Wall adds YOU…NOW | “The chain sees a participant and a commitment. Never the number.” |
-| 43–56s | Split What the chain sees / What you see | “This is the proof: public state on one side, private value on the other.” |
-| 56–68s | Toggle Demo Mode, show disclaimer | “Demo Mode is a simulation. Live mode hands signing to the Tari wallet.” |
-| 68–75s | Return to hero and logo | “Let the highest whisper.” |
+The swarm admin UI is at `http://localhost:8080`; it starts a wallet, validator, indexer, and funded local faucet.
 
-## Forum post
+## Usage
 
-SEANCE is a sealed-bid auction house for Tari Ootle. Bid amounts travel as confidential resources, so the room can see the ritual without seeing the number. The interface makes the privacy boundary tangible: whispering bid slots, a physical seal, and a split view of what the chain sees versus what the winner sees.
+1. Start a wallet daemon and connect it from the Live Mode banner.
+2. Publish the Tari auction template and configure `NEXT_PUBLIC_SEANCE_COMPONENT_ADDRESS`.
+3. Create an auction through the wallet-signed component call.
+4. Place sealed bids using the wallet’s confidential-resource flow.
+5. Close the auction, settle the winner, reveal the winning amount, and refund losing deposits.
 
-## Announcement
+If the wallet daemon or template address is unavailable, the UI reports the missing prerequisite and submits nothing. Demo Mode can be enabled manually for an offline preview.
 
-**Bluesky:** I built SEANCE for the Tari Ootle October build contest: a candlelit sealed-bid auction where the room sees the ritual, never the number. Demo it here: [link]
+## Project structure
 
-**Reddit:** SEANCE is my Tari Ootle October build: a sealed-bid auction concept with a working auction-rule core and a polished Demo Mode. It shows exactly what confidential resources hide—and what they still reveal—without faking privacy. [link]
+```text
+src/app/       Next.js page, metadata, and visual system
+src/lib/       Tari SDK connection and transaction boundary
+template/      Rust auction-rule core and future Tari WASM adapter
+docs/          Tari research and privacy notes
+scripts/       Repeatable local test commands
+```
+
+## Testing
+
+```bash
+npm run lint
+npm run test:template
+npx next build --webpack
+```
+
+For the full wallet, three-account, local-swarm flow, see [TESTING.md](TESTING.md). This environment verified the Esmeralda indexer connection, but had no wallet daemon, funded accounts, local swarm, deployed template, or transaction hashes available to run end to end.
+
+## Roadmap
+
+- Replace the standalone Rust core with a `tari_template_lib` WASM template.
+- Publish the template to LocalNet, then Esmeralda, and record its address here.
+- Implement wallet-daemon JRPC calls for confidential bid deposits and owned-output settlement.
+- Add verified transaction receipts and real substate data to the chain proof panel.
+- Add browser integration tests against a reproducible LocalNet fixture.
+
+## Contributing
+
+Keep changes small, run lint and Rust tests, do not commit `.env` files, wallet databases, seeds, private keys, or generated build output, and explain any privacy claim with a reproducible chain observation.
 
 ## License
 
-MIT. See [LICENSE](./LICENSE).
+MIT. See [LICENSE](LICENSE).
+
+## Acknowledgements
+
+Built against the Tari Ootle protocol and its open-source TypeScript SDK.
