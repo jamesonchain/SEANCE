@@ -25,7 +25,7 @@ The repository currently contains a polished frontend, a tested auction-rule cor
 
 During the commit phase, the bidder submits `SHA-256(amount + ":" + salt)` and a deposit. The amount and salt are hidden while bidding. The bidder must reveal the same amount and salt after bidding closes; the template verifies the hash. Unrevealed bids forfeit their deposit to the seller. The highest verified reveal wins, verified losers are refunded, and ties go to the earliest committed bid.
 
-Tari confidential resources hide balances in vaults, so deposit amounts can also be hidden when the deployed adapter uses a confidential vault. If a public resource is used instead, deposit amounts are visible. The bid amount is not hidden forever: it is intentionally revealed at close. Fees, timing, transaction structure, revealed fields, and identity-linked public calls remain visible.
+Tari confidential resources hide balances in vaults, so deposit amounts can also be hidden when the deployed adapter uses a confidential vault. If a public resource is used instead, deposit amounts are visible. The bid amount is intentionally revealed at close. Fees, timing, transaction structure, revealed fields, and identity-linked public calls remain visible.
 
 The Rust rules are tested locally. The Tari WASM template is not yet published, so the live UI does not claim that its auction actions are currently on-chain.
 
