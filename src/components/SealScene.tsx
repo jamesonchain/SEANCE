@@ -92,7 +92,8 @@ function SealObject({ onCrack }: { onCrack: () => void }) {
   useEffect(() => {
     if (!group.current) return;
     const context = gsap.context(() => {
-      gsap.to(group.current!.scale, { x: 0.72, y: 0.72, z: 0.72, opacity: 0.2, ease: "none", scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom top", scrub: 1 } });
+      gsap.to(group.current!.scale, { x: 0.72, y: 0.72, z: 0.72, ease: "none", scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom top", scrub: 1 } });
+      gsap.to(".seal-scene", { opacity: 0.2, ease: "none", scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom top", scrub: 1 } });
     });
     return () => context.revert();
   }, []);
