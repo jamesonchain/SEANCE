@@ -20,6 +20,9 @@ function formatAmount(amount: string | number | bigint, divisibility: number) {
 function walletConnectionError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
   const normalized = message.toLowerCase();
+  if (normalized.includes("credentialnotfound") || normalized.includes("credential not found")) {
+    return new Error("No Tari passkey is registered for this browser profile. Open http://127.0.0.1:5100, register the wallet passkey, then connect again.");
+  }
   if (normalized.includes("notallowederror") || normalized.includes("cancelled") || normalized.includes("canceled") || normalized.includes("timed out")) {
     return new Error("Passkey cancelled or timed out. Press Connect wallet and approve the Tari passkey prompt.");
   }
