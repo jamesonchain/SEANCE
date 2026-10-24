@@ -5,5 +5,8 @@ edition = "2021"
 license = "MIT"
 description = "Deterministic sealed-bid auction rules for the SEANCE Tari adapter"
 
+[dependencies]
+sha2 = "0.10"
+
 [lib]
 path = "src/lib.rs"

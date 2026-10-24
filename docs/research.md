@@ -13,11 +13,13 @@ An Ootle template is Rust code compiled to a WebAssembly (`wasm32-unknown-unknow
 - **Encrypted output data:** the recipient's wallet decrypts the amount and mask; a third party cannot do so without the relevant key.
 - **What still leaks:** fees are revealed, transaction shape and timing are public, revealed inputs/outputs are public, and calls that require a public signature can link an action to a key.
 
-## Honest sealed-bid design
+## Honest commit/reveal auction design
 
-The winning design uses stealth TARI bids where possible. The auction component stores public auction metadata and opaque bid commitments/receipts, while bid amounts travel as private outputs. The component can enforce that a bid is committed before close and that only the winner receives a revealed payout. However, a fully on-chain “the contract compares hidden bids and reveals only the maximum” is not supported by the primitives alone: a template cannot inspect plaintext confidential values it does not own, and a public component call can reveal caller identity. The closest honest version is a commit/reveal or encrypted-bid flow with a designated reveal/settlement authority, or a threshold/co-signed settlement flow. The UI must label any authority and metadata leakage instead of claiming zero-knowledge auction computation.
+SEANCE now models a commit/reveal auction. During bidding, the bidder submits `SHA-256(amount || ":" || salt)` plus a deposit. The amount and salt are not in the commitment. The seller closes bidding, bidders reveal the amount and salt, and the template verifies the hash. A verified highest amount wins; verified losers are refunded; equal amounts go to the earliest commitment; unrevealed bids forfeit their deposit to the seller.
 
-For the contest build, SEANCE will implement the strongest working path available in the checked-out Ootle APIs and keep an explicit Demo Mode for the visual walkthrough. Demo Mode is a simulation, never presented as chain privacy.
+Tari confidential resources are stored in vaults and hide balances, so the adapter can use a confidential vault for deposits if the published template transaction path supports the required withdrawal/deposit proof. If the adapter instead uses a public resource, the deposit amount is visible. In either case, the bid amount is hidden only during the commit phase; it is intentionally revealed when the bidder reveals. Fees, timing, transaction structure, and identity-linked public calls remain visible.
+
+The Rust crate tests the phase rules and hash verification. It is not yet a published Tari template, so the repository does not claim that an on-chain auction has been deployed.
 
 ## Local swarm and deployment
 
@@ -49,4 +51,4 @@ The current public testnet is **Esmeralda**. The wallet daemon release guide doc
 
 The documented browser integration is the TypeScript SDK, not a browser extension: `@tari-project/ootle` builds transactions, `@tari-project/ootle-indexer` reads/submits chain data, and `@tari-project/ootle-wallet-daemon-signer` delegates signing to a running wallet daemon. The SDK examples use a local wallet-daemon endpoint and explicit wallet authorization. Seeds and private keys must remain inside the wallet daemon.
 
-The repository’s current Rust crate is a tested deterministic auction-rule core. It is not yet compiled against `tari_template_lib`, so it has no valid Tari template address and cannot honestly be deployed. A real deployment requires replacing the standalone crate with a Tari template crate, building the WASM target against the pinned Ootle toolchain, funding a wallet, publishing it, and recording the resulting template address. The real UI must not display fabricated transaction IDs or chain data while those prerequisites are absent.
+The repository’s current Rust crate is a tested deterministic commit/reveal auction-rule core. It is not yet compiled against `tari_template_lib`, so it has no valid Tari template address and cannot honestly be deployed. A real deployment requires replacing the standalone crate with a Tari template crate, building the WASM target against the pinned Ootle toolchain, funding a wallet, publishing it, and recording the resulting template address. The real UI must not display fabricated transaction IDs or chain data while those prerequisites are absent.

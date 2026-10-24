@@ -1,61 +1,116 @@
-//! Deterministic auction rules shared by the Tari template adapter.
+//! Commit/reveal auction rules shared by the Tari template adapter.
 //!
-//! The `amount` is intentionally only accepted during settlement. A production
-//! adapter maps the commitment and escrow receipt to Tari confidential/stealth
-//! resources; this crate never pretends that a public component can inspect a
-//! hidden amount by itself.
+//! During bidding, only a SHA-256 commitment and a deposit are recorded. The
+//! amount and salt become available to the contract only when the bidder
+//! reveals them. Tari confidential vaults can hide deposit amounts; the
+//! adapter must use that resource type rather than treating the `deposit`
+//! field in this pure rules crate as public chain data.
 
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum AuctionError { Closed, AlreadyBid, ZeroBid, NotSeller, AlreadySettled, UnknownBidder, MissingReveal }
+pub enum AuctionError {
+    BiddingClosed,
+    RevealNotOpen,
+    AlreadyCommitted,
+    AlreadyRevealed,
+    ZeroAmount,
+    InvalidCommitment,
+    LateReveal,
+    NotSeller,
+    AlreadySettled,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Bid { pub bidder: String, pub commitment: String, pub deposit: u64, sequence: u64 }
+pub struct Bid {
+    pub bidder: String,
+    pub commitment: String,
+    pub deposit: u64,
+    sequence: u64,
+    revealed_amount: Option<u64>,
+}
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct Settlement { pub winner: String, pub winning_amount: u64, pub refunds: HashMap<String, u64> }
+pub struct Settlement {
+    pub winner: Option<String>,
+    pub winning_amount: Option<u64>,
+    pub refunds: HashMap<String, u64>,
+    pub forfeited_to_seller: HashMap<String, u64>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum Phase { Bidding, Reveal, Settled }
 
 #[derive(Debug)]
-pub struct Auction { seller: String, closed: bool, settled: bool, next_sequence: u64, bids: Vec<Bid> }
+pub struct Auction {
+    seller: String,
+    phase: Phase,
+    next_sequence: u64,
+    bids: Vec<Bid>,
+}
+
+/// The commitment a bidder submits: `hex(SHA256(amount || ":" || salt))`.
+/// The salt is never stored in the commitment phase.
+pub fn commitment_for(amount: u64, salt: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(amount.to_string().as_bytes());
+    hasher.update(b":");
+    hasher.update(salt.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
 
 impl Auction {
-    pub fn create(seller: impl Into<String>) -> Self { Self { seller: seller.into(), closed: false, settled: false, next_sequence: 0, bids: Vec::new() } }
+    pub fn create(seller: impl Into<String>) -> Self {
+        Self { seller: seller.into(), phase: Phase::Bidding, next_sequence: 0, bids: Vec::new() }
+    }
 
-    pub fn place_bid(&mut self, bidder: impl Into<String>, commitment: impl Into<String>, deposit: u64) -> Result<(), AuctionError> {
-        if self.closed { return Err(AuctionError::Closed); }
-        if deposit == 0 { return Err(AuctionError::ZeroBid); }
+    pub fn commit_bid(&mut self, bidder: impl Into<String>, commitment: impl Into<String>, deposit: u64) -> Result<(), AuctionError> {
+        if self.phase != Phase::Bidding { return Err(AuctionError::BiddingClosed); }
+        if deposit == 0 { return Err(AuctionError::ZeroAmount); }
         let bidder = bidder.into();
-        if self.bids.iter().any(|bid| bid.bidder == bidder) { return Err(AuctionError::AlreadyBid); }
-        self.bids.push(Bid { bidder, commitment: commitment.into(), deposit, sequence: self.next_sequence });
+        if self.bids.iter().any(|bid| bid.bidder == bidder) { return Err(AuctionError::AlreadyCommitted); }
+        self.bids.push(Bid { bidder, commitment: commitment.into(), deposit, sequence: self.next_sequence, revealed_amount: None });
         self.next_sequence += 1;
         Ok(())
     }
 
-    pub fn close(&mut self, caller: &str) -> Result<(), AuctionError> {
+    pub fn close_bidding(&mut self, caller: &str) -> Result<(), AuctionError> {
         if caller != self.seller { return Err(AuctionError::NotSeller); }
-        if self.closed { return Err(AuctionError::Closed); }
-        self.closed = true;
+        if self.phase != Phase::Bidding { return Err(AuctionError::BiddingClosed); }
+        self.phase = Phase::Reveal;
         Ok(())
     }
 
-    /// Reveals only the caller's own bid. Ties are won by the earliest commitment.
-    pub fn settle(&mut self, caller: &str, reveals: &[(String, u64)]) -> Result<Settlement, AuctionError> {
+    pub fn reveal_bid(&mut self, bidder: &str, amount: u64, salt: &str) -> Result<(), AuctionError> {
+        if self.phase == Phase::Settled { return Err(AuctionError::LateReveal); }
+        if self.phase != Phase::Reveal { return Err(AuctionError::RevealNotOpen); }
+        if amount == 0 { return Err(AuctionError::ZeroAmount); }
+        let bid = self.bids.iter_mut().find(|bid| bid.bidder == bidder).ok_or(AuctionError::InvalidCommitment)?;
+        if bid.revealed_amount.is_some() { return Err(AuctionError::AlreadyRevealed); }
+        if bid.commitment != commitment_for(amount, salt) { return Err(AuctionError::InvalidCommitment); }
+        bid.revealed_amount = Some(amount);
+        Ok(())
+    }
+
+    pub fn settle(&mut self, caller: &str) -> Result<Settlement, AuctionError> {
         if caller != self.seller { return Err(AuctionError::NotSeller); }
-        if !self.closed { return Err(AuctionError::Closed); }
-        if self.settled { return Err(AuctionError::AlreadySettled); }
-        if self.bids.is_empty() { return Err(AuctionError::MissingReveal); }
-        let mut winner: Option<(&Bid, u64)> = None;
+        if self.phase == Phase::Bidding { return Err(AuctionError::RevealNotOpen); }
+        if self.phase == Phase::Settled { return Err(AuctionError::AlreadySettled); }
+        let winner = self.bids.iter().filter_map(|bid| bid.revealed_amount.map(|amount| (bid, amount)))
+            .max_by(|(left, left_amount), (right, right_amount)| left_amount.cmp(right_amount).then_with(|| right.sequence.cmp(&left.sequence)));
         let mut refunds = HashMap::new();
+        let mut forfeited_to_seller = HashMap::new();
         for bid in &self.bids {
-            let amount = reveals.iter().find(|(who, _)| who == &bid.bidder).map(|(_, amount)| *amount).ok_or(AuctionError::MissingReveal)?;
-            if amount == 0 { return Err(AuctionError::ZeroBid); }
-            if winner.map(|(_, current)| amount > current).unwrap_or(true) { winner = Some((bid, amount)); }
+            match (winner.as_ref(), bid.revealed_amount) {
+                (Some((winning_bid, _)), Some(_)) if bid.bidder != winning_bid.bidder => { refunds.insert(bid.bidder.clone(), bid.deposit); }
+                (_, None) => { forfeited_to_seller.insert(bid.bidder.clone(), bid.deposit); }
+                _ => {}
+            }
         }
-        let (winning_bid, winning_amount) = winner.ok_or(AuctionError::MissingReveal)?;
-        for bid in &self.bids { if bid.bidder != winning_bid.bidder { refunds.insert(bid.bidder.clone(), bid.deposit); } }
-        self.settled = true;
-        Ok(Settlement { winner: winning_bid.bidder.clone(), winning_amount, refunds })
+        let result = Settlement { winner: winner.map(|(bid, _)| bid.bidder.clone()), winning_amount: winner.map(|(_, amount)| amount), refunds, forfeited_to_seller };
+        self.phase = Phase::Settled;
+        Ok(result)
     }
 
     pub fn bid_count(&self) -> usize { self.bids.len() }
@@ -65,15 +120,26 @@ impl Auction {
 mod tests {
     use super::*;
     fn auction() -> Auction { Auction::create("seller") }
+    fn commit(a: &mut Auction, bidder: &str, amount: u64, salt: &str, deposit: u64) { a.commit_bid(bidder, commitment_for(amount, salt), deposit).unwrap(); }
 
-    #[test] fn creates_and_settles_highest_bid() {
-        let mut a = auction(); a.place_bid("alice", "c1", 100).unwrap(); a.place_bid("bob", "c2", 120).unwrap(); a.close("seller").unwrap();
-        let result = a.settle("seller", &[("alice".into(), 80), ("bob".into(), 140)]).unwrap();
-        assert_eq!(result.winner, "bob"); assert_eq!(result.winning_amount, 140); assert_eq!(result.refunds["alice"], 100);
+    #[test]
+    fn valid_commit_reveal_settlement_refunds_loser() {
+        let mut a = auction(); commit(&mut a, "alice", 80, "a-salt", 100); commit(&mut a, "bob", 140, "b-salt", 120);
+        a.close_bidding("seller").unwrap(); a.reveal_bid("alice", 80, "a-salt").unwrap(); a.reveal_bid("bob", 140, "b-salt").unwrap();
+        let result = a.settle("seller").unwrap();
+        assert_eq!(result.winner, Some("bob".into())); assert_eq!(result.winning_amount, Some(140)); assert_eq!(result.refunds["alice"], 100); assert!(result.forfeited_to_seller.is_empty());
     }
-    #[test] fn rejects_late_and_double_bids() { let mut a = auction(); a.place_bid("alice", "c1", 1).unwrap(); assert_eq!(a.place_bid("alice", "c2", 2), Err(AuctionError::AlreadyBid)); a.close("seller").unwrap(); assert_eq!(a.place_bid("bob", "c2", 2), Err(AuctionError::Closed)); }
-    #[test] fn seller_cannot_close_or_settle_as_someone_else() { let mut a = auction(); assert_eq!(a.close("intruder"), Err(AuctionError::NotSeller)); a.place_bid("alice", "c1", 2).unwrap(); a.close("seller").unwrap(); assert_eq!(a.settle("intruder", &[("alice".into(), 2)]), Err(AuctionError::NotSeller)); }
-    #[test] fn rejects_zero_bids_and_zero_reveals() { let mut a = auction(); assert_eq!(a.place_bid("alice", "c1", 0), Err(AuctionError::ZeroBid)); a.place_bid("alice", "c1", 1).unwrap(); a.close("seller").unwrap(); assert_eq!(a.settle("seller", &[("alice".into(), 0)]), Err(AuctionError::ZeroBid)); }
-    #[test] fn rejects_missing_reveal_and_empty_auction() { let mut a = auction(); a.close("seller").unwrap(); assert_eq!(a.settle("seller", &[]), Err(AuctionError::MissingReveal)); let mut b = auction(); b.place_bid("alice", "c1", 1).unwrap(); b.close("seller").unwrap(); assert_eq!(b.settle("seller", &[]), Err(AuctionError::MissingReveal)); }
-    #[test] fn tie_goes_to_earliest_bid() { let mut a = auction(); a.place_bid("alice", "c1", 5).unwrap(); a.place_bid("bob", "c2", 5).unwrap(); a.close("seller").unwrap(); let result = a.settle("seller", &[("alice".into(), 10), ("bob".into(), 10)]).unwrap(); assert_eq!(result.winner, "alice"); }
+
+    #[test] fn wrong_salt_is_rejected() { let mut a = auction(); commit(&mut a, "alice", 80, "right", 1); a.close_bidding("seller").unwrap(); assert_eq!(a.reveal_bid("alice", 80, "wrong"), Err(AuctionError::InvalidCommitment)); }
+    #[test] fn late_commit_is_rejected() { let mut a = auction(); a.close_bidding("seller").unwrap(); assert_eq!(a.commit_bid("alice", "c", 1), Err(AuctionError::BiddingClosed)); }
+    #[test] fn late_reveal_is_rejected() { let mut a = auction(); commit(&mut a, "alice", 80, "salt", 1); a.close_bidding("seller").unwrap(); a.settle("seller").unwrap(); assert_eq!(a.reveal_bid("alice", 80, "salt"), Err(AuctionError::LateReveal)); }
+
+    #[test]
+    fn no_reveal_forfeits_deposit() { let mut a = auction(); commit(&mut a, "alice", 80, "salt", 100); a.close_bidding("seller").unwrap(); let result = a.settle("seller").unwrap(); assert_eq!(result.winner, None); assert_eq!(result.forfeited_to_seller["alice"], 100); }
+
+    #[test]
+    fn tie_goes_to_earliest_commit() { let mut a = auction(); commit(&mut a, "alice", 100, "a", 1); commit(&mut a, "bob", 100, "b", 1); a.close_bidding("seller").unwrap(); a.reveal_bid("alice", 100, "a").unwrap(); a.reveal_bid("bob", 100, "b").unwrap(); assert_eq!(a.settle("seller").unwrap().winner, Some("alice".into())); }
+    #[test] fn double_commit_is_rejected() { let mut a = auction(); commit(&mut a, "alice", 2, "a", 1); assert_eq!(a.commit_bid("alice", "other", 1), Err(AuctionError::AlreadyCommitted)); }
+    #[test] fn zero_bid_is_rejected() { let mut a = auction(); assert_eq!(a.commit_bid("alice", "c", 0), Err(AuctionError::ZeroAmount)); commit(&mut a, "bob", 1, "b", 1); a.close_bidding("seller").unwrap(); assert_eq!(a.reveal_bid("bob", 0, "b"), Err(AuctionError::ZeroAmount)); }
+    #[test] fn seller_cannot_cheat_phase_or_settlement() { let mut a = auction(); assert_eq!(a.close_bidding("intruder"), Err(AuctionError::NotSeller)); commit(&mut a, "alice", 5, "a", 1); a.close_bidding("seller").unwrap(); assert_eq!(a.settle("intruder"), Err(AuctionError::NotSeller)); a.settle("seller").unwrap(); assert_eq!(a.settle("seller"), Err(AuctionError::AlreadySettled)); }
 }

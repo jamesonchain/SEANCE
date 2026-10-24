@@ -19,7 +19,7 @@ Open `http://localhost:8080` and confirm the validator, indexer, and wallet are 
 
 ## 2. Build and publish the template
 
-The current `template/` crate is the tested auction-rule core, not yet a publishable `tari_template_lib` WASM template. Before running these commands, replace it with the Tari template adapter and build it against the same Ootle toolchain as the swarm:
+The current `template/` crate is the tested commit/reveal auction-rule core, not yet a publishable `tari_template_lib` WASM template. Before running these commands, replace it with the Tari template adapter and build it against the same Ootle toolchain as the swarm:
 
 ```bash
 cargo build --target wasm32-unknown-unknown --release
@@ -33,7 +33,7 @@ export NEXT_PUBLIC_SEANCE_COMPONENT_ADDRESS="<published-component-address>"
 export NEXT_PUBLIC_TARI_WALLETD_URL="http://127.0.0.1:18103"
 ```
 
-## 3. Run SEANCE
+## 3. Run the commit/reveal flow
 
 ```bash
 cd SEANCE
@@ -43,11 +43,13 @@ npm run dev
 
 Connect three wallet accounts in separate daemon profiles or approved account sessions:
 
-1. Seller account: create the auction and close it.
-2. Bidder A: submit a confidential bid.
-3. Bidder B: submit a confidential bid.
+1. Seller account: create the auction and close the bidding phase.
+2. Bidder A: submit `SHA-256(amount + ":" + salt)` and a deposit.
+3. Bidder B: submit a different commitment and deposit.
 
-Then use the seller account to close and settle. Verify that the winner can decrypt/reveal the winning value and that losing deposits return to the losing accounts.
+Then open the reveal phase. Each bidder submits the original amount and salt. Verify that the template rejects a wrong salt, accepts a matching reveal, selects the highest verified amount, gives equal amounts to the earliest commitment, refunds verified losers, and sends unrevealed deposits to the seller.
+
+Confidential resources can hide deposit balances in vaults. If the deployed adapter uses a public resource instead, deposit amounts are visible. Bid amounts are hidden during commit and intentionally revealed during reveal.
 
 ## 4. Required evidence
 
@@ -62,4 +64,4 @@ Save the following in local notes, not in Git:
 - Refund transaction IDs.
 - Indexer observations showing committed amounts are not public plaintext.
 
-As of 24 October 2026, this repository has no template address or transaction hashes. The public Esmeralda indexer connection was verified, but no wallet daemon, funded LocalNet, published template, or end-to-end transaction was available in the execution environment. No hashes are fabricated.
+As of 24 October 2026, this repository has no template address or transaction hashes. The public Esmeralda indexer connection was verified. The official CLI was installed, but its template repository refresh failed with a TLS-stream error before a Tari template could be scaffolded. No wallet daemon, funded LocalNet, published template, or end-to-end transaction was available in the execution environment. No hashes are fabricated.

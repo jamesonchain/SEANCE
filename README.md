@@ -8,7 +8,7 @@ Confidential sealed-bid auctions for Tari Ootle.
 
 ## Overview
 
-SEANCE is an auction interface for Tari Ootle. It is designed around sealed bids: participants submit an offer without publishing the amount to the chain, then the auction settles according to explicit close, reveal, winner, and refund rules.
+SEANCE is an auction interface for Tari Ootle. It uses commit/reveal bidding: participants first submit a hash of their amount and a secret salt, then reveal both after bidding closes. The template verifies the reveal before selecting a winner.
 
 The repository currently contains a polished frontend, a tested auction-rule core, and a real Tari Ootle SDK connection path. The Tari template has not yet been published, so the live UI refuses to fabricate a component address, transaction ID, or auction state. Demo Mode remains available as an offline preview and is off by default.
 
@@ -17,26 +17,28 @@ The repository currently contains a polished frontend, a tested auction-rule cor
 - Live-mode connection to the Esmeralda Ootle indexer and a local Tari wallet daemon.
 - Wallet-daemon signing through the official TypeScript SDK; private keys stay in the daemon.
 - Explicit offline preview mode labelled `SIMULATION`.
-- Auction UI for creating a lot, placing a bid, closing, revealing, and refunding once the template is deployed.
-- Rust tests for highest-bid settlement, tie-breaking, late bids, duplicate bids, zero bids, missing reveals, and seller authorization.
+- Commit/reveal auction UI: seal a commitment, close bidding, reveal the amount and salt, settle, and refund.
+- Rust tests for valid flow, wrong salt, late commit, late reveal, no reveal, ties, duplicate commits, zero bids, and seller authorization.
 - Chain-versus-human privacy panel that shows only verified live fields.
 
 ## How privacy works
 
-The intended Tari flow uses confidential or stealth resources. Confidential resources hide amounts with commitments but still expose the owning vault/component. Stealth resources hide amounts and ownership using one-time addresses. Fees, timing, transaction structure, revealed inputs/outputs, and identity-linked public calls remain visible.
+During the commit phase, the bidder submits `SHA-256(amount + ":" + salt)` and a deposit. The amount and salt are hidden while bidding. The bidder must reveal the same amount and salt after bidding closes; the template verifies the hash. Unrevealed bids forfeit their deposit to the seller. The highest verified reveal wins, verified losers are refunded, and ties go to the earliest committed bid.
 
-The current repository proves the auction rules in Rust, but it does not yet prove a deployed on-chain auction template. A public component cannot inspect arbitrary hidden bid plaintexts by itself. A production settlement therefore needs an honest reveal/settlement or threshold-authority design. Until that design is deployed and verified, SEANCE does not claim that the current UI is a live private auction.
+Tari confidential resources hide balances in vaults, so deposit amounts can also be hidden when the deployed adapter uses a confidential vault. If a public resource is used instead, deposit amounts are visible. The bid amount is not hidden forever: it is intentionally revealed at close. Fees, timing, transaction structure, revealed fields, and identity-linked public calls remain visible.
+
+The Rust rules are tested locally. The Tari WASM template is not yet published, so the live UI does not claim that its auction actions are currently on-chain.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  UI[Next.js frontend] --> SDK[@tari-project/ootle]
-  SDK --> IDX[Esmeralda or LocalNet indexer]
-  SDK --> SIGN[WalletDaemonSigner]
-  SIGN --> WALLET[Tari wallet daemon]
-  WALLET --> CHAIN[Tari Ootle validators]
-  UI --> TEMPLATE[Published auction template]
+  UI["Next.js frontend"] --> SDK["@tari-project/ootle"]
+  SDK --> IDX["Esmeralda or LocalNet indexer"]
+  SDK --> SIGN["WalletDaemonSigner"]
+  SIGN --> WALLET["Tari wallet daemon"]
+  WALLET --> CHAIN["Tari Ootle validators"]
+  UI --> TEMPLATE["Published auction template"]
   TEMPLATE --> CHAIN
 ```
 
@@ -88,8 +90,8 @@ The swarm admin UI is at `http://localhost:8080`; it starts a wallet, validator,
 1. Start a wallet daemon and connect it from the Live Mode banner.
 2. Publish the Tari auction template and configure `NEXT_PUBLIC_SEANCE_COMPONENT_ADDRESS`.
 3. Create an auction through the wallet-signed component call.
-4. Place sealed bids using the wallet’s confidential-resource flow.
-5. Close the auction, settle the winner, reveal the winning amount, and refund losing deposits.
+4. Place commitments using the wallet’s confidential-resource flow where supported.
+5. Close bidding, reveal each amount and salt, settle the highest verified reveal, and refund verified losers.
 
 If the wallet daemon or template address is unavailable, the UI reports the missing prerequisite and submits nothing. Demo Mode can be enabled manually for an offline preview.
 
