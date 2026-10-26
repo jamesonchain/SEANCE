@@ -25,6 +25,7 @@ export default function Home() {
   const [revealed, setRevealed] = useState(false);
   const [revealAmount, setRevealAmount] = useState(420);
   const [salt, setSalt] = useState("");
+  const [deposit] = useState(10);
   const [amount, setAmount] = useState(420);
   const [sound, setSound] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -72,18 +73,39 @@ export default function Home() {
     try { const { connectTariLive } = await import("@/lib/tari"); setSession(await connectTariLive()); setLiveState("connected"); }
     catch (error) { setLiveState("error"); setLiveError(error instanceof Error ? error.message : "Could not connect to the Tari wallet daemon."); }
   };
-  const sealBid = () => {
+  const sealBid = async () => {
     if (demoMode) { setSealed(true); return; }
     if (!session) { setLiveError("Connect the Tari wallet daemon before submitting a live bid."); setLiveState("error"); return; }
-    setLiveError("The live auction component is not deployed yet. No transaction was submitted."); setLiveState("error");
+    if (!amount || amount <= 0) { setLiveError("Enter a bid greater than zero."); return; }
+    const revealSalt = salt || crypto.randomUUID();
+    setSalt(revealSalt);
+    setLiveState("connecting"); setLiveError("");
+    try {
+      const microTari = BigInt(1000000);
+      const { commitmentFor, commitAuctionBid } = await import("@/lib/tari");
+      const commitment = await commitmentFor((BigInt(amount) * microTari).toString(), revealSalt);
+      await commitAuctionBid(session, commitment, BigInt(deposit) * microTari);
+      setSealed(true); setLiveState("connected");
+    } catch (error) { setLiveState("error"); setLiveError(error instanceof Error ? error.message : "Commit transaction failed."); }
   };
-  const closeBidding = () => {
+  const closeBidding = async () => {
     if (demoMode) { setPhase("reveal"); return; }
-    setLiveError("The live auction component is not deployed yet. No close transaction was submitted."); setLiveState("error");
+    if (!session) { setLiveError("Connect the Tari wallet daemon before closing the auction."); setLiveState("error"); return; }
+    setLiveState("connecting"); setLiveError("");
+    try {
+      const { closeAuction, settleAuction } = await import("@/lib/tari");
+      if (phase === "reveal" && revealed) { await settleAuction(session); setPhase("settled"); }
+      else { await closeAuction(session); setPhase("reveal"); }
+      setLiveState("connected");
+    } catch (error) { setLiveState("error"); setLiveError(error instanceof Error ? error.message : "Auction phase transaction failed."); }
   };
-  const revealBid = () => {
+  const revealBid = async () => {
     if (demoMode) { setRevealed(true); setPhase("settled"); return; }
-    setLiveError("The live auction component is not deployed yet. No reveal transaction was submitted."); setLiveState("error");
+    if (!session) { setLiveError("Connect the Tari wallet daemon before revealing."); setLiveState("error"); return; }
+    if (!salt) { setLiveError("The original salt is required for reveal."); return; }
+    setLiveState("connecting"); setLiveError("");
+    try { const { revealAuctionBid } = await import("@/lib/tari"); await revealAuctionBid(session, BigInt(revealAmount) * BigInt(1000000), salt); setRevealed(true); setLiveState("connected"); }
+    catch (error) { setLiveState("error"); setLiveError(error instanceof Error ? error.message : "Reveal transaction failed."); }
   };
 
   return (

@@ -1,12 +1,13 @@
 "use client";
 
-import { Network, TransactionBuilder, sendTransaction } from "@tari-project/ootle";
+import type { Network, TransactionBuilder } from "@tari-project/ootle";
 import { ProviderBuilder, type IndexerProvider } from "@tari-project/ootle-indexer";
 import { authenticate, WalletDaemonSigner } from "@tari-project/ootle-wallet-daemon-signer";
 import { WalletDaemonClient } from "@tari-project/wallet_jrpc_client";
 
 const walletdUrl = process.env.NEXT_PUBLIC_TARI_WALLETD_URL ?? "http://127.0.0.1:5100/json_rpc";
 const walletSessionTtlMs = 60 * 60 * 1000;
+const loadOotle = () => import("@tari-project/ootle");
 
 function formatAmount(amount: string | number | bigint, divisibility: number) {
   const raw = BigInt(amount);
@@ -27,7 +28,7 @@ function walletConnectionError(error: unknown) {
     return new Error("Passkey cancelled or timed out. Press Connect wallet and approve the Tari passkey prompt.");
   }
   if (normalized.includes("securityerror") || normalized.includes("origin") || normalized.includes("insecure")) {
-    return new Error("Wallet origin mismatch. Open SEANCE at http://localhost:3000 so WebAuthn matches the daemon allow-list.");
+    return new Error("Wallet origin mismatch. The daemon must be started with --enable-vite-dev-port 3000 and SEANCE must be opened at http://localhost:3000.");
   }
   if (normalized.includes("401") || normalized.includes("403") || normalized.includes("unauthorized") || normalized.includes("auth.refresh") || normalized.includes("session")) {
     return new Error("Wallet session expired. Connect wallet again to start a fresh 60-minute Tari session.");
@@ -51,6 +52,7 @@ export type TariLiveSession = {
 };
 
 export async function connectTariLive(): Promise<TariLiveSession> {
+  const { Network } = await loadOotle();
   const provider = await ProviderBuilder.new().withNetwork(Network.Esmeralda).connect();
   // The v0.47 daemon's JSON-RPC CORS response is wildcard. Browser credential
   // mode would therefore be rejected by the platform; the bearer session token
@@ -97,6 +99,8 @@ export async function invokeAuctionMethod(
   methodName: string,
   args: unknown[] = [],
 ) {
+  const { TransactionBuilder, sendTransaction } = await loadOotle();
+  if (Date.now() >= session.expiresAt) throw new Error("Wallet session expired. Connect wallet again to start a fresh 60-minute Tari session.");
   const componentAddress = process.env.NEXT_PUBLIC_SEANCE_COMPONENT_ADDRESS;
   if (!componentAddress) {
     throw new Error("SEANCE is not deployed: set NEXT_PUBLIC_SEANCE_COMPONENT_ADDRESS after publishing the Tari template.");
@@ -110,5 +114,50 @@ export async function invokeAuctionMethod(
     )
     .buildUnsignedTransaction();
   return sendTransaction(session.provider, session.signer, unsigned);
+}
+
+function auctionAddress() {
+  const address = process.env.NEXT_PUBLIC_SEANCE_COMPONENT_ADDRESS;
+  if (!address) throw new Error("SEANCE is not deployed: set NEXT_PUBLIC_SEANCE_COMPONENT_ADDRESS after publishing the Tari template.");
+  return address;
+}
+
+function depositResource() {
+  return process.env.NEXT_PUBLIC_SEANCE_DEPOSIT_RESOURCE ?? "resource_0101010101010101010101010101010101010101010101010101010101010101";
+}
+
+async function sendAuctionTransaction(session: TariLiveSession, builder: TransactionBuilder) {
+  const { sendTransaction } = await loadOotle();
+  if (Date.now() >= session.expiresAt) throw new Error("Wallet session expired. Connect wallet again to start a fresh 60-minute Tari session.");
+  return sendTransaction(session.provider, session.signer, builder.buildUnsignedTransaction());
+}
+
+export async function commitAuctionBid(session: TariLiveSession, commitment: Uint8Array, depositMicroTari: bigint) {
+  const { TransactionBuilder, amountLiteral, bytesLiteral, resourceAddressLiteral } = await loadOotle();
+  const maxEpoch = Math.max(session.epoch + 10, await session.provider.getCurrentEpoch() + 10);
+  const builder = TransactionBuilder.new(session.network, maxEpoch)
+    .feeTransactionPayFromComponent(session.address, BigInt(1000))
+    .callMethod({ componentAddress: session.address, methodName: "withdraw" }, [resourceAddressLiteral(depositResource()), amountLiteral(depositMicroTari)])
+    .saveVar("deposit")
+    .callMethod({ componentAddress: auctionAddress(), methodName: "commit" }, [bytesLiteral(commitment), { Workspace: "deposit" }]);
+  return sendAuctionTransaction(session, builder);
+}
+
+export async function closeAuction(session: TariLiveSession) {
+  return invokeAuctionMethod(session, "close_bidding");
+}
+
+export async function revealAuctionBid(session: TariLiveSession, amountMicroTari: bigint, salt: string) {
+  const { amountLiteral, bytesLiteral } = await loadOotle();
+  return invokeAuctionMethod(session, "reveal", [amountLiteral(amountMicroTari), bytesLiteral(new TextEncoder().encode(salt))]);
+}
+
+export async function settleAuction(session: TariLiveSession) {
+  return invokeAuctionMethod(session, "settle");
+}
+
+export async function commitmentFor(amount: string, salt: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${amount}:${salt}`));
+  return new Uint8Array(digest);
 }
 
