@@ -19,18 +19,19 @@ Open `http://localhost:8080` and confirm the validator, indexer, and wallet are 
 
 ## 2. Build and publish the template
 
-The current `template/` crate is the tested commit/reveal auction-rule core, not yet a publishable `tari_template_lib` WASM template. Before running these commands, replace it with the Tari template adapter and build it against the same Ootle toolchain as the swarm:
+Build the publishable `tari_template_lib 0.35.0` adapter:
 
 ```bash
-cargo build --target wasm32-unknown-unknown --release
-tari publish --yes <auction-template>
+../SEANCE/scripts/build-seance-template.sh
+export TARI_AUTH_TOKEN="<short-lived WebAuthn session token>"
+node ../SEANCE/scripts/publish-seance-template.mjs
 ```
 
 Record the returned template address. Instantiate the component, record its component address, and set it locally (never commit the file):
 
 ```bash
 export NEXT_PUBLIC_SEANCE_COMPONENT_ADDRESS="<published-component-address>"
-export NEXT_PUBLIC_TARI_WALLETD_URL="http://127.0.0.1:18103"
+export NEXT_PUBLIC_TARI_WALLETD_URL="http://127.0.0.1:5100/json_rpc"
 ```
 
 ## 3. Run the commit/reveal flow
@@ -64,4 +65,4 @@ Save the following in local notes, not in Git:
 - Refund transaction IDs.
 - Indexer observations showing committed amounts are not public plaintext.
 
-As of 24 October 2026, this repository has no template address or transaction hashes. The public Esmeralda indexer connection was verified. The official CLI was installed, but its template repository refresh failed with a TLS-stream error before a Tari template could be scaffolded. No wallet daemon, funded LocalNet, published template, or end-to-end transaction was available in the execution environment. No hashes are fabricated.
+The adapter was built and the deployment scripts were added. The last deployment attempt could not proceed because `127.0.0.1:5100` refused the connection; WebAuthn also requires a browser session and the daemon's origin must be changed to `http://localhost:3000`. Therefore this repository intentionally records no template address or transaction hashes yet. No hashes are fabricated.

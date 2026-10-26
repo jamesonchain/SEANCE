@@ -10,7 +10,7 @@ Confidential sealed-bid auctions for Tari Ootle.
 
 SEANCE is an auction interface for Tari Ootle. It uses commit/reveal bidding: participants first submit a hash of their amount and a secret salt, then reveal both after bidding closes. The template verifies the reveal before selecting a winner.
 
-The repository currently contains a polished frontend, a tested auction-rule core, and a real Tari Ootle SDK connection path. The Tari template has not yet been published, so the live UI refuses to fabricate a component address, transaction ID, or auction state. Demo Mode remains available as an offline preview and is off by default.
+The repository contains a polished frontend, a tested auction-rule core, a publishable Tari WASM adapter, and a real Tari Ootle SDK connection path. A template/component address is not recorded yet because the Esmeralda daemon was unavailable during the last deployment attempt; the live UI refuses to fabricate chain state. Demo Mode remains available as an offline preview and is off by default.
 
 ## Features
 
@@ -27,7 +27,7 @@ During the commit phase, the bidder submits `SHA-256(amount + ":" + salt)` and a
 
 Tari confidential resources hide balances in vaults, so deposit amounts can also be hidden when the deployed adapter uses a confidential vault. If a public resource is used instead, deposit amounts are visible. The bid amount is intentionally revealed at close. Fees, timing, transaction structure, revealed fields, and identity-linked public calls remain visible.
 
-The Rust rules are tested locally. The Tari WASM template is not yet published, so the live UI does not claim that its auction actions are currently on-chain.
+The Rust rules are tested locally and the adapter compiles against `tari_template_lib 0.35.0`. The adapter has not yet been published to Esmeralda, so the live UI does not claim that an auction action is on-chain until real addresses and receipts are configured.
 
 ## Architecture
 
@@ -61,7 +61,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`. Live Mode is the default. The app connects to Esmeralda wallet JSON-RPC at `http://127.0.0.1:5100/json_rpc` and expects the daemon's allowed origin to be `http://localhost:3000`. Set `NEXT_PUBLIC_TARI_WALLETD_URL` only when using a different JSON-RPC endpoint. Set `NEXT_PUBLIC_SEANCE_COMPONENT_ADDRESS` only after publishing a real auction component.
+Open `http://localhost:3000`. Live Mode is the default. The app connects to Esmeralda wallet JSON-RPC at `http://127.0.0.1:5100/json_rpc`. For WebAuthn from this app, start the daemon with `--enable-vite-dev-port 3000` so its allowed origin is exactly `http://localhost:3000`; the daemon's current `http://localhost:5100` allow-list will reject this app origin. Set `NEXT_PUBLIC_TARI_WALLETD_URL` only when using a different JSON-RPC endpoint. Set `NEXT_PUBLIC_SEANCE_COMPONENT_ADDRESS` and `NEXT_PUBLIC_SEANCE_DEPOSIT_RESOURCE` only after publishing a real auction component.
 
 ### Esmeralda testnet
 
@@ -88,7 +88,7 @@ The swarm admin UI is at `http://localhost:8080`; it starts a wallet, validator,
 ## Usage
 
 1. Start a wallet daemon and connect it from the Live Mode banner.
-2. Publish the Tari auction template and configure `NEXT_PUBLIC_SEANCE_COMPONENT_ADDRESS`.
+2. Build and publish the Tari auction template with `scripts/build-seance-template.sh` and `scripts/publish-seance-template.mjs`, then configure the real component address and deposit resource.
 3. Create an auction through the wallet-signed component call.
 4. Place commitments using the wallet’s confidential-resource flow where supported.
 5. Close bidding, reveal each amount and salt, settle the highest verified reveal, and refund verified losers.
@@ -100,7 +100,7 @@ If the wallet daemon or template address is unavailable, the UI reports the miss
 ```text
 src/app/       Next.js page, metadata, and visual system
 src/lib/       Tari SDK connection and transaction boundary
-template/      Rust auction-rule core and future Tari WASM adapter
+template/      Rust rules and tari_template_lib WASM adapter
 docs/          Tari research and privacy notes
 scripts/       Repeatable local test commands
 ```
@@ -113,12 +113,11 @@ npm run test:template
 npx next build --webpack
 ```
 
-For the full wallet, three-account, local-swarm flow, see [TESTING.md](TESTING.md). This environment verified the Esmeralda indexer connection, but had no wallet daemon, funded accounts, local swarm, deployed template, or transaction hashes available to run end to end.
+For the full wallet, three-account, local-swarm flow, see [TESTING.md](TESTING.md). The adapter build is verified; deployment and transaction receipts remain environment-dependent and are not fabricated here.
 
 ## Roadmap
 
-- Replace the standalone Rust core with a `tari_template_lib` WASM template.
-- Publish the template to LocalNet, then Esmeralda, and record its address here.
+- Publish the compiled template to LocalNet, then Esmeralda, and record its address here.
 - Implement wallet-daemon JRPC calls for confidential bid deposits and owned-output settlement.
 - Add verified transaction receipts and real substate data to the chain proof panel.
 - Add browser integration tests against a reproducible LocalNet fixture.
