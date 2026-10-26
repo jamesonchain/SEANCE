@@ -9,6 +9,9 @@
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 
+#[cfg(feature = "tari-template")]
+mod tari_adapter;
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum AuctionError {
     BiddingClosed,
