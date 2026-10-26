@@ -93,7 +93,6 @@ mod seance_auction_template {
         pub fn settle(&mut self) {
             assert_eq!(CallerContext::current_component_address(), self.seller, "seller only");
             assert_eq!(self.phase, 1, "reveal phase is not open");
-            assert!(self.winner_index().is_some(), "at least one valid reveal is required");
             self.phase = 2;
         }
 
