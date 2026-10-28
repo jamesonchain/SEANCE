@@ -123,7 +123,11 @@ function auctionAddress() {
 }
 
 function depositResource() {
-  return process.env.NEXT_PUBLIC_SEANCE_DEPOSIT_RESOURCE ?? "resource_0101010101010101010101010101010101010101010101010101010101010101";
+  const address = process.env.NEXT_PUBLIC_SEANCE_DEPOSIT_RESOURCE;
+  if (!address || address === "resource_<hex>") {
+    throw new Error("SEANCE deposit resource is not configured: set NEXT_PUBLIC_SEANCE_DEPOSIT_RESOURCE to the real resource address accepted by the published template.");
+  }
+  return address;
 }
 
 async function sendAuctionTransaction(session: TariLiveSession, builder: TransactionBuilder) {
@@ -154,6 +158,83 @@ export async function revealAuctionBid(session: TariLiveSession, amountMicroTari
 
 export async function settleAuction(session: TariLiveSession) {
   return invokeAuctionMethod(session, "settle");
+}
+
+export type AuctionCreationEstimate = {
+  feeEstimateMicroTari: bigint;
+  maxFeeMicroTari: bigint;
+};
+
+export type AuctionCreationResult = {
+  componentAddress: string;
+  depositResource: string;
+  feePaidMicroTari: bigint | null;
+  transactionHash: string | null;
+};
+
+async function buildAuctionCreationTransaction(session: TariLiveSession, maxFeeMicroTari: bigint) {
+  const { TransactionBuilder, componentAddressLiteral, resourceAddressLiteral } = await loadOotle();
+  const templateAddress = process.env.NEXT_PUBLIC_SEANCE_TEMPLATE_ADDRESS;
+  if (!templateAddress || templateAddress === "template_<hex>") {
+    throw new Error("SEANCE template is not configured.");
+  }
+  const maxEpoch = Math.max(session.epoch + 10, await session.provider.getCurrentEpoch() + 10);
+  return TransactionBuilder.new(session.network, maxEpoch)
+    .feeTransactionPayFromComponent(session.address, maxFeeMicroTari)
+    .callFunction(
+      { templateAddress, functionName: "instantiate" } as never,
+      [componentAddressLiteral(session.address), resourceAddressLiteral(depositResource())] as never,
+    )
+    .buildUnsignedTransaction();
+}
+
+function dryRunFee(response: unknown): bigint {
+  if (typeof response !== "object" || response === null || !("result" in response)) {
+    throw new Error("Auction creation dry run returned an invalid response.");
+  }
+  const result = response.result;
+  if (typeof result !== "object" || result === null || !("Finalized" in result)) {
+    throw new Error("Auction creation dry run did not finalize; inspect the daemon response and try again.");
+  }
+  const execution = (result.Finalized as { execution_result?: { finalize?: { total_fees_required?: bigint | number | string } } }).execution_result;
+  const required = execution?.finalize?.total_fees_required;
+  if (required == null) throw new Error("Auction creation dry run returned no fee estimate.");
+  return typeof required === "bigint" ? required : BigInt(required);
+}
+
+export async function estimateAuctionCreation(session: TariLiveSession): Promise<AuctionCreationEstimate> {
+  const { sendDryRun } = await loadOotle();
+  const unsigned = await buildAuctionCreationTransaction(session, BigInt(100000));
+  const response = await sendDryRun(session.provider, session.signer, unsigned);
+  const feeEstimateMicroTari = dryRunFee(response);
+  return {
+    feeEstimateMicroTari,
+    maxFeeMicroTari: feeEstimateMicroTari + feeEstimateMicroTari / BigInt(10) + BigInt(1),
+  };
+}
+
+export async function createAuction(session: TariLiveSession, maxFeeMicroTari: bigint): Promise<AuctionCreationResult> {
+  const { sendTransaction } = await loadOotle();
+  const response = await sendTransaction(
+    session.provider,
+    session.signer,
+    await buildAuctionCreationTransaction(session, maxFeeMicroTari),
+  );
+  const upSubstates = response.receipt?.receipt.diff_summary.upped ?? [];
+  const componentAddress = upSubstates.map((entry) => entry.substate_id).find((id) => id.startsWith("component_"));
+  if (!componentAddress) throw new Error("Auction creation committed but the receipt contained no component address.");
+  const finalized = response.result;
+  let transactionHash: string | null = null;
+  if (typeof finalized === "object" && finalized !== null && "Finalized" in finalized) {
+    const hash = finalized.Finalized.execution_result?.finalize?.transaction_hash;
+    transactionHash = hash == null ? null : String(hash);
+  }
+  return {
+    componentAddress,
+    depositResource: depositResource(),
+    feePaidMicroTari: response.receipt?.receipt.fee_receipt.total_fees_paid ?? null,
+    transactionHash,
+  };
 }
 
 export async function commitmentFor(amount: string, salt: string) {
