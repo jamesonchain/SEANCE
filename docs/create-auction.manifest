@@ -1,0 +1,12 @@
+use template_71f5c279c39d18ad7ca19b3f072a74e4fe61e83b188a2ffe771b9373923b0f8a as SeanceAuction;
+
+fn fee_main() {
+    let account = var!["account"];
+    account.pay_fee(2000u64);
+}
+
+fn main() {
+    let account = var!["account"];
+    let deposit_resource = var!["deposit_resource"];
+    SeanceAuction::instantiate(Address(account), Address(deposit_resource));
+}

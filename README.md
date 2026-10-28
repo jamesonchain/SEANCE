@@ -10,7 +10,7 @@ Confidential sealed-bid auctions for Tari Ootle.
 
 SEANCE is an auction interface for Tari Ootle. It uses commit/reveal bidding: participants first submit a hash of their amount and a secret salt, then reveal both after bidding closes. The template verifies the reveal before selecting a winner.
 
-The repository contains a polished frontend, a tested auction-rule core, a publishable Tari WASM adapter, and a real Tari Ootle SDK connection path. A template/component address is not recorded yet because the Esmeralda daemon was unavailable during the last deployment attempt; the live UI refuses to fabricate chain state. Demo Mode remains available as an offline preview and is off by default.
+The repository contains a polished frontend, a tested auction-rule core, a published Tari WASM adapter, and a real Tari Ootle SDK connection path. The adapter is published on Esmeralda at `template_71f5c279c39d18ad7ca19b3f072a74e4fe61e83b188a2ffe771b9373923b0f8a`. The live UI refuses to fabricate component state until a real auction component address and deposit resource are configured. Demo Mode remains available as an offline preview and is off by default.
 
 ## Features
 
@@ -89,7 +89,7 @@ The swarm admin UI is at `http://localhost:8080`; it starts a wallet, validator,
 
 1. Start a wallet daemon and connect it from the Live Mode banner.
 2. Build and publish the Tari auction template with `scripts/build-seance-template.sh` and `scripts/publish-seance-template.mjs`, then configure the real component address and deposit resource.
-3. Create an auction through the wallet-signed component call.
+3. Create an auction by calling `instantiate(seller, deposit_resource)` through the wallet-signed component call. The currently published adapter has manual close/reveal/settle phases; it does not encode epoch windows or a minimum bid.
 4. Place commitments using the wallet’s confidential-resource flow where supported.
 5. Close bidding, reveal each amount and salt, settle the highest verified reveal, and refund verified losers.
 
