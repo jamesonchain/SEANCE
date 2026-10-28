@@ -27,7 +27,7 @@ During the commit phase, the bidder submits `SHA-256(amount + ":" + salt)` and a
 
 Tari confidential resources hide balances in vaults, so deposit amounts can also be hidden when the deployed adapter uses a confidential vault. If a public resource is used instead, deposit amounts are visible. The bid amount is intentionally revealed at close. Fees, timing, transaction structure, revealed fields, and identity-linked public calls remain visible.
 
-The Rust rules are tested locally and the adapter compiles against `tari_template_lib 0.35.0`. The adapter has not yet been published to Esmeralda, so the live UI does not claim that an auction action is on-chain until real addresses and receipts are configured.
+The Rust rules are tested locally and the adapter compiles against `tari_template_lib 0.35.0`. The live UI does not claim that an auction action is on-chain until a real component address and receipt are configured.
 
 ## Architecture
 
@@ -89,7 +89,9 @@ The swarm admin UI is at `http://localhost:8080`; it starts a wallet, validator,
 
 1. Start a wallet daemon and connect it from the Live Mode banner.
 2. Build and publish the Tari auction template with `scripts/build-seance-template.sh` and `scripts/publish-seance-template.mjs`, then configure the real component address and deposit resource.
-3. Create an auction by calling `instantiate(seller, deposit_resource)` through the wallet-signed component call. The currently published adapter has manual close/reveal/settle phases; it does not encode epoch windows or a minimum bid.
+3. Create an auction by calling `instantiate(seller, deposit_resource)` through the wallet-signed component call. The currently published adapter has manual close/reveal/settle phases; it does not encode epoch windows or a minimum bid. Esmeralda epochs are consensus checkpoints, not a fixed wall-clock timer; the current network configuration uses 10 blocks per epoch, so use the live provider epoch rather than assuming a number of minutes.
+
+The Create auction panel first runs a real SDK dry run and displays the returned fee in µTARI. The second button submits through the authenticated Walletd signer. The finalized receipt's `diff_summary.upped` contains the new `component_<hex>` address. The deposit resource is the constructor input (`resource_0101…0101` for native tTARI), not a resource created by this transaction, so it is read from `NEXT_PUBLIC_SEANCE_DEPOSIT_RESOURCE` rather than invented from the receipt.
 4. Place commitments using the wallet’s confidential-resource flow where supported.
 5. Close bidding, reveal each amount and salt, settle the highest verified reveal, and refund verified losers.
 

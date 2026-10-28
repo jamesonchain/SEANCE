@@ -19,7 +19,7 @@ SEANCE now models a commit/reveal auction. During bidding, the bidder submits `S
 
 Tari confidential resources are stored in vaults and hide balances, so the adapter can use a confidential vault for deposits if the published template transaction path supports the required withdrawal/deposit proof. If the adapter instead uses a public resource, the deposit amount is visible. In either case, the bid amount is hidden only during the commit phase; it is intentionally revealed when the bidder reveals. Fees, timing, transaction structure, and identity-linked public calls remain visible.
 
-The Rust crate tests the phase rules and hash verification. It is not yet a published Tari template, so the repository does not claim that an on-chain auction has been deployed.
+The Rust crate tests the phase rules and hash verification. The Tari adapter is published on Esmeralda at `template_71f5c279c39d18ad7ca19b3f072a74e4fe61e83b188a2ffe771b9373923b0f8a`; the repository does not claim an auction component exists until a real creation receipt is observed.
 
 ## Local swarm and deployment
 
@@ -53,4 +53,4 @@ The current public testnet is **Esmeralda**. The wallet daemon release guide doc
 
 The documented browser integration is the TypeScript SDK, not a browser extension: `@tari-project/ootle` builds transactions, `@tari-project/ootle-indexer` reads/submits chain data, and `@tari-project/ootle-wallet-daemon-signer` delegates signing to a running wallet daemon. The SDK examples use a local wallet-daemon endpoint and explicit wallet authorization. Seeds and private keys must remain inside the wallet daemon.
 
-The repository now contains a tested deterministic rules core plus a `tari_template_lib 0.35.0` adapter that compiles to `wasm32-unknown-unknown`. It has not yet been published because the local daemon was unavailable during the deployment attempt. The real UI must not display fabricated transaction IDs or chain data while the daemon session, component address, and receipts are absent.
+The repository now contains a tested deterministic rules core plus a `tari_template_lib 0.35.0` adapter that compiles to `wasm32-unknown-unknown` and is published on Esmeralda. The real UI must not display fabricated transaction IDs or chain data while the daemon session, component address, and receipts are absent.
