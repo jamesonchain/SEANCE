@@ -43,6 +43,7 @@ next-env.d.ts
 # Rust and local build output
 /target/
 /template/target/
+/dist/
 
 # Secrets and wallet state
 .env
