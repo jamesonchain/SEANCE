@@ -61,7 +61,14 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`. Live Mode is the default. The app connects to Esmeralda wallet JSON-RPC at `http://127.0.0.1:5100/json_rpc`. For WebAuthn from this app, start the daemon with `--enable-vite-dev-port 3000` so its allowed origin is exactly `http://localhost:3000`; the daemon's current `http://localhost:5100` allow-list will reject this app origin. Set `NEXT_PUBLIC_TARI_WALLETD_URL` only when using a different JSON-RPC endpoint. Set `NEXT_PUBLIC_SEANCE_COMPONENT_ADDRESS` and `NEXT_PUBLIC_SEANCE_DEPOSIT_RESOURCE` only after publishing a real auction component.
+Start the WebAuthn daemon with the exact development-origin flag, then start the app and open the matching origin:
+
+```bash
+./tari_ootle_walletd --network esme --auth webauthn --enable-vite-dev-port 3000
+npm run dev
+```
+
+Open `http://localhost:3000` (not `http://127.0.0.1:3000`). The app connects to Esmeralda wallet JSON-RPC at `http://127.0.0.1:5100/json_rpc`; `--enable-vite-dev-port 3000` allows the WebAuthn origin `http://localhost:3000`. Set `NEXT_PUBLIC_TARI_WALLETD_URL` only when using a different JSON-RPC endpoint. Set `NEXT_PUBLIC_SEANCE_COMPONENT_ADDRESS` only after the real creation transaction finalizes; the native tTARI resource is already recorded in `.env.example`.
 
 ### Esmeralda testnet
 
