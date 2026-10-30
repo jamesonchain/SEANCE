@@ -44,6 +44,7 @@ next-env.d.ts
 /target/
 /template/target/
 /dist/
+/artifacts/
 
 # Secrets and wallet state
 .env
