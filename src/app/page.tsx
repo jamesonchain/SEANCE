@@ -61,6 +61,36 @@ export default function Home() {
     return () => window.removeEventListener("mousemove", move);
   }, []);
   useEffect(() => {
+    history.scrollRestoration = "manual";
+    const resetScroll = async () => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      if (window.location.hash) window.history.replaceState(null, document.title, `${window.location.pathname}${window.location.search}`);
+      const [{ ScrollTrigger }, { default: Lenis }] = await Promise.all([import("gsap/ScrollTrigger"), import("lenis")]);
+      ScrollTrigger.clearScrollMemory();
+      const lenis = new Lenis({ autoRaf: false });
+      lenis.scrollTo(0, { immediate: true });
+      ScrollTrigger.refresh();
+      lenis.destroy();
+    };
+    void resetScroll();
+    const onPageShow = () => { void resetScroll(); };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
+  useEffect(() => {
+    const root = document.documentElement;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    root.classList.add("opening-lock");
+    document.body.classList.add("opening-lock");
+    const release = window.setTimeout(() => {
+      root.classList.remove("opening-lock");
+      document.body.classList.remove("opening-lock");
+    }, reduced ? 80 : 1200);
+    return () => window.clearTimeout(release);
+  }, []);
+  useEffect(() => {
     const magnets = Array.from(document.querySelectorAll<HTMLElement>(".magnetic"));
     const cleanups = magnets.map((element) => {
       const move = (event: MouseEvent) => {
