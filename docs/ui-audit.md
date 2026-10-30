@@ -30,3 +30,9 @@ The generated screenshots and JSON report are intentionally ignored from Git. Re
 ```bash
 node scripts/ui-audit.mjs
 ```
+
+## Final QA
+
+The production build passed with `npm run build`, `npm run lint`, and `npx tsc --noEmit`. The build script uses the Webpack builder because this environment cannot run the default Turbopack CSS worker. The remaining build warning comes from the Tari SDK async WebAssembly module.
+
+Chrome and WebKit both passed the reload, back-navigation, hash removal, and scroll reset checks. The production screenshot matrix completed 20 scenarios with zero browser errors and zero document overflow metrics. Lighthouse on the production build scored 89 performance and 91 accessibility.
