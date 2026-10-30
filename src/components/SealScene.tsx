@@ -122,6 +122,17 @@ export default function SealScene() {
     try { const canvas = document.createElement("canvas"); return Boolean(canvas.getContext("webgl") || canvas.getContext("experimental-webgl")); } catch { return false; }
   });
   const [cracked, setCracked] = useState(false);
+  const [active, setActive] = useState(true);
+  const sceneRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const node = sceneRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(([entry]) => setActive(entry.isIntersecting && document.visibilityState !== "hidden"), { threshold: 0.01 });
+    observer.observe(node);
+    const onVisibility = () => setActive(document.visibilityState !== "hidden");
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => { observer.disconnect(); document.removeEventListener("visibilitychange", onVisibility); };
+  }, []);
   if (reduced || !webgl) return <div className="seal-fallback" role="img" aria-label="Ember wax seal with SEANCE sigil"><span> S </span><i /></div>;
-  return <div className={`seal-scene ${cracked ? "is-cracked" : ""}`} aria-label="Interactive wax seal medallion"><Canvas dpr={[1, 1.5]} camera={{ position: [0, 0, 5.4], fov: 34 }} frameloop="always"><ambientLight intensity={0.35} /><pointLight position={[-2, 2, 4]} color="#FF5A1F" intensity={10} distance={8} /><Embers count={window.innerWidth < 600 ? 28 : 64} /><SealObject onCrack={() => setCracked(true)} /></Canvas><div className="seal-sigil" aria-hidden="true">S</div>{cracked && <span className="burst" aria-hidden="true" />}</div>;
+  return <div ref={sceneRef} className={`seal-scene ${cracked ? "is-cracked" : ""}`} data-idle-motion aria-label="Interactive wax seal medallion"><Canvas dpr={[1, 1.5]} camera={{ position: [0, 0, 5.4], fov: 34 }} frameloop={active ? "always" : "never"}><ambientLight intensity={0.35} /><pointLight position={[-2, 2, 4]} color="#FF5A1F" intensity={10} distance={8} /><Embers count={window.innerWidth < 600 ? 28 : 64} /><SealObject onCrack={() => setCracked(true)} /></Canvas><div className="seal-sigil" aria-hidden="true">S</div>{cracked && <span className="burst" aria-hidden="true" />}</div>;
 }
